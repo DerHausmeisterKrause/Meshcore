@@ -1,0 +1,84 @@
+{
+	"common": {
+		"name": "meshcore",
+		"version": "0.0.1",
+		"news": {
+			"0.0.1": {
+				"en": "initial release",
+				"de": "Erstveröffentlichung",
+				"ru": "Начальная версия",
+				"pt": "lançamento inicial",
+				"nl": "Eerste uitgave",
+				"fr": "Première version",
+				"it": "Versione iniziale",
+				"es": "Versión inicial",
+				"pl": "Pierwsze wydanie",
+				"uk": "Початкова версія",
+				"zh-cn": "首次出版"
+			}
+		},
+		"titleLang": {
+			"en": "meshcore",
+			"de": "Meshcore",
+			"ru": "сетка",
+			"pt": "malhacore",
+			"nl": "meshcore",
+			"fr": "noyau maillé",
+			"it": "meshcore",
+			"es": "núcleo de malla",
+			"pl": "siatkacore",
+			"uk": "meshcore",
+			"zh-cn": "网状核心"
+		},
+		"desc": {
+			"en": "Meshcore a IoBroker Adapter",
+			"de": "Meshcore ist ein IoBroker-Adapter",
+			"ru": "Meshcore для адаптера IoBroker",
+			"pt": "Meshcore um adaptador IoBroker",
+			"nl": "Meshcore een IoBroker-adapter",
+			"fr": "Meshcore un adaptateur IoBroker",
+			"it": "Meshcore un adattatore IoBroker",
+			"es": "Meshcore un adaptador IoBroker",
+			"pl": "Meshcore i adapter IoBroker",
+			"uk": "Адаптер Meshcore a IoBroker",
+			"zh-cn": "Meshcore IoBroker 适配器"
+		},
+		"authors": ["DerHausmeisterKrause <marcel.asboeck2000@web.de>"],
+		"keywords": ["Lora Meshcore"],
+		"licenseInformation": {
+			"type": "free",
+			"license": "MIT"
+		},
+		"platform": "Javascript/Node.js",
+		"icon": "meshcore.png",
+		"enabled": true,
+		"extIcon": "https://raw.githubusercontent.com/DerHausmeisterKrause/ioBroker.meshcore/main/admin/meshcore.png",
+		"readme": "https://github.com/DerHausmeisterKrause/ioBroker.meshcore/blob/main/README.md",
+		"loglevel": "info",
+		"tier": 3,
+		"mode": "daemon",
+		"type": "protocols",
+		"compact": true,
+		"connectionType": "local",
+		"dataSource": "push",
+		"adminUI": {
+			"config": "json"
+		},
+		"dependencies": [
+			{
+				"js-controller": ">=6.0.11"
+			}
+		],
+		"globalDependencies": [
+			{
+				"admin": ">=7.0.23"
+			}
+		]
+	},
+	"native": {
+		"option1": true,
+		"option2": "42"
+	},
+	"objects": [],
+	"instanceObjects": []
+}

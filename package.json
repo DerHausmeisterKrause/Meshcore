@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@liamcottle/meshcore.js": "^1.10.0"
+  }
+}

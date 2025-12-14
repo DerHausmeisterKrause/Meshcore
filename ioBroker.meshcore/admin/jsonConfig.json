@@ -1,0 +1,43 @@
+{
+  "type": "panel",
+  "items": {
+    "transport": {
+      "type": "select",
+      "label": "Transport",
+      "options": [
+        { "label": "TCP", "value": "tcp" },
+        { "label": "Serial", "value": "serial" }
+      ],
+      "default": "tcp"
+    },
+    "host": {
+      "type": "text",
+      "label": "Host",
+      "default": "127.0.0.1",
+      "hidden": "data.transport !== 'tcp'"
+    },
+    "port": {
+      "type": "number",
+      "label": "Port",
+      "default": 4242,
+      "hidden": "data.transport !== 'tcp'"
+    },
+    "serialPort": {
+      "type": "text",
+      "label": "Serial Port (COMx)",
+      "default": "COM3",
+      "hidden": "data.transport !== 'serial'"
+    },
+    "baudRate": {
+      "type": "number",
+      "label": "Baud Rate",
+      "default": 115200,
+      "hidden": "data.transport !== 'serial'"
+    },
+    "debug": {
+      "type": "checkbox",
+      "label": "Debug logging",
+      "default": false
+    }
+  }
+}
