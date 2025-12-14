@@ -1,167 +1,296 @@
-/*
- * Created with @iobroker/create-adapter v3.1.2
- */
+import * as utils from "@iobroker/adapter-core";
+import { TCPConnection } from "@liamcottle/meshcore.js";
 
-// The adapter-core module gives you access to the core ioBroker functions
-// you need to create an adapter
-import * as utils from '@iobroker/adapter-core';
+type RpcRequest = {
+  method: string;
+  args?: unknown[];
+};
 
-// Load your modules here, e.g.:
-// import * as fs from 'fs';
+type RpcResponseOk = { ok: true; result: unknown };
+type RpcResponseErr = { ok: false; error: string };
+type RpcResponse = RpcResponseOk | RpcResponseErr;
 
-class Meshcore extends utils.Adapter {
-	public constructor(options: Partial<utils.AdapterOptions> = {}) {
-		super({
-			...options,
-			name: 'meshcore',
-		});
-		this.on('ready', this.onReady.bind(this));
-		this.on('stateChange', this.onStateChange.bind(this));
-		// this.on('objectChange', this.onObjectChange.bind(this));
-		// this.on('message', this.onMessage.bind(this));
-		this.on('unload', this.onUnload.bind(this));
-	}
+class MeshcoreAdapter extends utils.Adapter {
+  private conn: any | null = null;
+  private reconnectTimer: ioBroker.Timeout | null = null;
+  private contactsTimer: ioBroker.Timeout | null = null;
+  private isShuttingDown = false;
 
-	/**
-	 * Is called when databases are connected and adapter received configuration.
-	 */
-	private async onReady(): Promise<void> {
-		// Initialize your adapter here
+  public constructor(options: Partial<utils.AdapterOptions> = {}) {
+    super({ ...options, name: "meshcore" });
 
-		// The adapters config (in the instance object everything under the attribute "native") is accessible via
-		// this.config:
-		this.log.debug('config option1: ${this.config.option1}');
-		this.log.debug('config option2: ${this.config.option2}');
+    this.on("ready", this.onReady.bind(this));
+    this.on("unload", this.onUnload.bind(this));
+    this.on("message", this.onMessage.bind(this));
+  }
 
-		/*
-		For every state in the system there has to be also an object of type state
-		Here a simple template for a boolean variable named "testVariable"
-		Because every adapter instance uses its own unique namespace variable names can't collide with other adapters variables
+  private async onReady(): Promise<void> {
+    const host = String(this.config.host || "").trim();
+    const port = Number(this.config.port || 0);
+    const reconnectMs = this.toPositiveInt(this.config.reconnectMs, 5000);
+    const refreshContactsMs = this.toPositiveInt(this.config.refreshContactsMs, 60000);
 
-		IMPORTANT: State roles should be chosen carefully based on the state's purpose.
-		           Please refer to the state roles documentation for guidance:
-		           https://www.iobroker.net/#en/documentation/dev/stateroles.md
-		*/
-		await this.setObjectNotExistsAsync('testVariable', {
-			type: 'state',
-			common: {
-				name: 'testVariable',
-				type: 'boolean',
-				role: 'indicator',
-				read: true,
-				write: true,
-			},
-			native: {},
-		});
+    await this.ensureObjects();
 
-		// In order to get state updates, you need to subscribe to them. The following line adds a subscription for our variable we have created above.
-		this.subscribeStates('testVariable');
-		// You can also add a subscription for multiple states. The following line watches all states starting with "lights."
-		// this.subscribeStates('lights.*');
-		// Or, if you really must, you can also watch all states. Don't do this if you don't need to. Otherwise this will cause a lot of unnecessary load on the system:
-		// this.subscribeStates('*');
+    await this.setStateAsync("info.host", host, true);
+    await this.setStateAsync("info.port", port, true);
+    await this.setStateAsync("info.connection", false, true);
+    await this.setStateAsync("info.lastError", "", true);
 
-		/*
-			setState examples
-			you will notice that each setState will cause the stateChange event to fire (because of above subscribeStates cmd)
-		*/
-		// the variable testVariable is set to true as command (ack=false)
-		await this.setState('testVariable', true);
+    if (!host || !Number.isFinite(port) || port <= 0 || port > 65535) {
+      await this.setStateAsync("info.lastError", "Config invalid: host/port", true);
+      this.log.error("Config invalid: host/port");
+      return;
+    }
 
-		// same thing, but the value is flagged "ack"
-		// ack should be always set to true if the value is received from or acknowledged from the target system
-		await this.setState('testVariable', { val: true, ack: true });
+    await this.connect(host, port, reconnectMs, refreshContactsMs);
+  }
 
-		// same thing, but the state is deleted after 30s (getState will return null afterwards)
-		await this.setState('testVariable', { val: true, ack: true, expire: 30 });
+  private toPositiveInt(value: unknown, fallback: number): number {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return fallback;
+    return Math.floor(n);
+  }
 
-		// examples for the checkPassword/checkGroup functions
-		const pwdResult = await this.checkPasswordAsync('admin', 'iobroker');
-		this.log.info(`check user admin pw iobroker: ${JSON.stringify(pwdResult)}`);
+  private async ensureObjects(): Promise<void> {
+    const mkState = async (id: string, common: ioBroker.StateCommon) => {
+      await this.setObjectNotExistsAsync(id, { type: "state", common, native: {} });
+    };
 
-		const groupResult = await this.checkGroupAsync('admin', 'admin');
-		this.log.info(`check group user admin group admin: ${JSON.stringify(groupResult)}`);
-	}
+    await mkState("info.connection", {
+      name: "Connected",
+      type: "boolean",
+      role: "indicator.connected",
+      read: true,
+      write: false,
+      def: false,
+    });
 
-	/**
-	 * Is called when adapter shuts down - callback has to be called under any circumstances!
-	 *
-	 * @param callback - Callback function
-	 */
-	private onUnload(callback: () => void): void {
-		try {
-			// Here you must clear all timeouts or intervals that may still be active
-			// clearTimeout(timeout1);
-			// clearTimeout(timeout2);
-			// ...
-			// clearInterval(interval1);
+    await mkState("info.lastError", {
+      name: "Last error",
+      type: "string",
+      role: "text",
+      read: true,
+      write: false,
+      def: "",
+    });
 
-			callback();
-		} catch (error) {
-			this.log.error(`Error during unloading: ${(error as Error).message}`);
-			callback();
-		}
-	}
+    await mkState("info.host", {
+      name: "Host",
+      type: "string",
+      role: "info.address",
+      read: true,
+      write: false,
+      def: "",
+    });
 
-	// If you need to react to object changes, uncomment the following block and the corresponding line in the constructor.
-	// You also need to subscribe to the objects with `this.subscribeObjects`, similar to `this.subscribeStates`.
-	// /**
-	//  * Is called if a subscribed object changes
-	//  */
-	// private onObjectChange(id: string, obj: ioBroker.Object | null | undefined): void {
-	// 	if (obj) {
-	// 		// The object was changed
-	// 		this.log.info(`object ${id} changed: ${JSON.stringify(obj)}`);
-	// 	} else {
-	// 		// The object was deleted
-	// 		this.log.info(`object ${id} deleted`);
-	// 	}
-	// }
+    await mkState("info.port", {
+      name: "Port",
+      type: "number",
+      role: "info.port",
+      read: true,
+      write: false,
+      def: 0,
+    });
 
-	/**
-	 * Is called if a subscribed state changes
-	 *
-	 * @param id - State ID
-	 * @param state - State object
-	 */
-	private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
-		if (state) {
-			// The state was changed
-			this.log.info(`state ${id} changed: ${state.val} (ack = ${state.ack})`);
+    await mkState("contacts.json", {
+      name: "Contacts JSON",
+      type: "string",
+      role: "json",
+      read: true,
+      write: false,
+      def: "[]",
+    });
 
-			if (state.ack === false) {
-				// This is a command from the user (e.g., from the UI or other adapter)
-				// and should be processed by the adapter
-				this.log.info(`User command received for ${id}: ${state.val}`);
+    await mkState("rpc.lastCall", {
+      name: "RPC last call",
+      type: "string",
+      role: "text",
+      read: true,
+      write: false,
+      def: "",
+    });
 
-				// TODO: Add your control logic here
-			}
-		} else {
-			// The object was deleted or the state value has expired
-			this.log.info(`state ${id} deleted`);
-		}
-	}
-	// If you need to accept messages in your adapter, uncomment the following block and the corresponding line in the constructor.
-	// /**
-	//  * Some message was sent to this instance over message box. Used by email, pushover, text2speech, ...
-	//  * Using this method requires "common.messagebox" property to be set to true in io-package.json
-	//  */
-	//
-	// private onMessage(obj: ioBroker.Message): void {
-	// 	if (typeof obj === 'object' && obj.message) {
-	// 		if (obj.command === 'send') {
-	// 			// e.g. send email or pushover or whatever
-	// 			this.log.info('send command');
-	// 			// Send response in callback if required
-	// 			if (obj.callback) this.sendTo(obj.from, obj.command, 'Message received', obj.callback);
-	// 		}
-	// 	}
-	// }
+    await mkState("rpc.lastResultJson", {
+      name: "RPC last result JSON",
+      type: "string",
+      role: "json",
+      read: true,
+      write: false,
+      def: "",
+    });
+
+    await mkState("rpc.lastError", {
+      name: "RPC last error",
+      type: "string",
+      role: "text",
+      read: true,
+      write: false,
+      def: "",
+    });
+  }
+
+  private async connect(host: string, port: number, reconnectMs: number, refreshContactsMs: number): Promise<void> {
+    if (this.isShuttingDown) return;
+
+    this.log.info(`Connecting to MeshCore Companion TCP at ${host}:${port}`);
+
+    try {
+      await this.cleanupConnection();
+
+      const conn = new TCPConnection(host, port);
+      this.conn = conn;
+
+      conn.on("connected", async () => {
+        if (this.isShuttingDown) return;
+
+        this.log.info("MeshCore connected");
+        await this.setStateAsync("info.connection", true, true);
+        await this.setStateAsync("info.lastError", "", true);
+
+        await this.refreshContactsSafe();
+        this.startContactsTimer(refreshContactsMs);
+      });
+
+      conn.on("disconnected", async () => {
+        if (this.isShuttingDown) return;
+
+        this.log.warn("MeshCore disconnected");
+        await this.setStateAsync("info.connection", false, true);
+        this.stopContactsTimer();
+
+        this.scheduleReconnect(host, port, reconnectMs, refreshContactsMs);
+      });
+
+      await conn.connect();
+    } catch (e: any) {
+      const msg = e?.message ? String(e.message) : String(e);
+      this.log.error(`Connect failed: ${msg}`);
+      await this.setStateAsync("info.connection", false, true);
+      await this.setStateAsync("info.lastError", msg, true);
+
+      this.scheduleReconnect(host, port, reconnectMs, refreshContactsMs);
+    }
+  }
+
+  private scheduleReconnect(host: string, port: number, reconnectMs: number, refreshContactsMs: number): void {
+    if (this.reconnectTimer) return;
+
+    this.reconnectTimer = this.setTimeout(async () => {
+      this.reconnectTimer = null;
+      await this.connect(host, port, reconnectMs, refreshContactsMs);
+    }, reconnectMs);
+  }
+
+  private startContactsTimer(refreshContactsMs: number): void {
+    this.stopContactsTimer();
+    this.contactsTimer = this.setInterval(async () => {
+      await this.refreshContactsSafe();
+    }, refreshContactsMs);
+  }
+
+  private stopContactsTimer(): void {
+    if (this.contactsTimer) this.clearInterval(this.contactsTimer);
+    this.contactsTimer = null;
+  }
+
+  private async refreshContactsSafe(): Promise<void> {
+    try {
+      if (!this.conn) return;
+      if (typeof this.conn.getContacts !== "function") return;
+
+      const contacts = await this.conn.getContacts();
+      await this.setStateAsync("contacts.json", JSON.stringify(contacts ?? []), true);
+    } catch (e: any) {
+      const msg = e?.message ? String(e.message) : String(e);
+      this.log.warn(`getContacts failed: ${msg}`);
+    }
+  }
+
+  private async cleanupConnection(): Promise<void> {
+    this.stopContactsTimer();
+
+    if (this.reconnectTimer) this.clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+
+    try {
+      if (this.conn && typeof this.conn.close === "function") {
+        this.conn.close();
+      }
+    } catch {
+    }
+
+    this.conn = null;
+  }
+
+  private async onMessage(obj: ioBroker.Message): Promise<void> {
+    if (!obj?.command) return;
+
+    if (obj.command === "meshcore.rpc") {
+      const res = await this.handleRpc(obj.message as RpcRequest);
+      if (obj.callback) this.sendTo(obj.from, obj.command, res, obj.callback);
+      return;
+    }
+
+    if (obj.command === "meshcore.getMethods") {
+      const list = this.getPublicMethodNames();
+      if (obj.callback) this.sendTo(obj.from, obj.command, { ok: true, methods: list }, obj.callback);
+      return;
+    }
+  }
+
+  private getPublicMethodNames(): string[] {
+    const c = this.conn;
+    if (!c) return [];
+    const proto = Object.getPrototypeOf(c);
+    const names = new Set<string>();
+
+    const add = (o: any) => {
+      if (!o) return;
+      for (const k of Object.getOwnPropertyNames(o)) {
+        if (k === "constructor") continue;
+        if (k.startsWith("_")) continue;
+        const v = c[k];
+        if (typeof v === "function") names.add(k);
+      }
+    };
+
+    add(proto);
+    add(c);
+
+    return Array.from(names).sort();
+  }
+
+  private async handleRpc(req: RpcRequest): Promise<RpcResponse> {
+    const method = String(req?.method || "").trim();
+    const args = Array.isArray(req?.args) ? req.args : [];
+
+    await this.setStateAsync("rpc.lastCall", JSON.stringify({ method, args }), true);
+    await this.setStateAsync("rpc.lastError", "", true);
+
+    try {
+      if (!this.conn) throw new Error("not connected");
+      const fn = this.conn[method];
+      if (typeof fn !== "function") throw new Error(`unknown method: ${method}`);
+
+      const result = await fn.apply(this.conn, args);
+
+      const json = JSON.stringify(result ?? null);
+      await this.setStateAsync("rpc.lastResultJson", json, true);
+
+      return { ok: true, result };
+    } catch (e: any) {
+      const msg = e?.message ? String(e.message) : String(e);
+      await this.setStateAsync("rpc.lastError", msg, true);
+      return { ok: false, error: msg };
+    }
+  }
+
+  private async onUnload(callback: () => void): Promise<void> {
+    this.isShuttingDown = true;
+    await this.cleanupConnection();
+    callback();
+  }
 }
-if (require.main !== module) {
-	// Export the constructor in compact mode
-	module.exports = (options: Partial<utils.AdapterOptions> | undefined) => new Meshcore(options);
-} else {
-	// otherwise start the instance directly
-	(() => new Meshcore())();
-}
+
+export default (options: Partial<utils.AdapterOptions> = {}) => new MeshcoreAdapter(options);

@@ -2,6 +2,7 @@
 	"common": {
 		"name": "meshcore",
 		"version": "0.0.1",
+		"blockly": true,
 		"news": {
 			"0.0.1": {
 				"en": "initial release",
@@ -83,8 +84,10 @@
 		]
 	},
 	"native": {
-		"option1": true,
-		"option2": "42"
+		"host": "192.168.1.50",
+		"port": 5000,
+		"reconnectMs": 5000,
+		"refreshContactsMs": 60000
 	},
 	"objects": [],
 	"instanceObjects": []

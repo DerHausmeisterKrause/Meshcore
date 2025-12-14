@@ -1,0 +1,28 @@
+<xml style="display: none">
+  <category name="MeshCore" colour="210">
+    <block type="meshcore_instance"></block>
+
+    <block type="meshcore_connected">
+      <value name="INSTANCE">
+        <shadow type="meshcore_instance"></shadow>
+      </value>
+    </block>
+
+    <block type="meshcore_get_contacts_json">
+      <value name="INSTANCE">
+        <shadow type="meshcore_instance"></shadow>
+      </value>
+    </block>
+
+    <block type="meshcore_rpc">
+      <value name="INSTANCE">
+        <shadow type="meshcore_instance"></shadow>
+      </value>
+      <value name="ARGS_JSON">
+        <shadow type="text">
+          <field name="TEXT">[]</field>
+        </shadow>
+      </value>
+    </block>
+  </category>
+</xml>
