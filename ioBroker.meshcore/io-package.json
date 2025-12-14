@@ -1,0 +1,91 @@
+{
+	"common": {
+		"name": "meshcore",
+		"version": "0.0.1",
+		"news": {
+			"0.0.1": {
+				"en": "initial release",
+				"de": "Erstveröffentlichung",
+				"ru": "Начальная версия",
+				"pt": "lançamento inicial",
+				"nl": "Eerste uitgave",
+				"fr": "Première version",
+				"it": "Versione iniziale",
+				"es": "Versión inicial",
+				"pl": "Pierwsze wydanie",
+				"uk": "Початкова версія",
+				"zh-cn": "首次出版"
+			}
+		},
+		"titleLang": {
+			"en": "meshcore",
+			"de": "Meshcore",
+			"ru": "сетка",
+			"pt": "malhacore",
+			"nl": "meshcore",
+			"fr": "noyau maillé",
+			"it": "meshcore",
+			"es": "núcleo de malla",
+			"pl": "siatkacore",
+			"uk": "meshcore",
+			"zh-cn": "网状核心"
+		},
+		"desc": {
+			"en": "A ioBroker Meshcore Adapter",
+			"de": "Ein ioBroker Meshcore-Adapter",
+			"ru": "Адаптер Meshcore ioBroker",
+			"pt": "Um adaptador Meshcore ioBroker",
+			"nl": "Een ioBroker Meshcore-adapter",
+			"fr": "Un adaptateur Meshcore ioBroker",
+			"it": "Un adattatore Meshcore ioBroker",
+			"es": "Un adaptador Meshcore de ioBroker",
+			"pl": "Adapter ioBroker Meshcore",
+			"uk": "Адаптер ioBroker Meshcore",
+			"zh-cn": "ioBroker Meshcore 适配器"
+		},
+		"authors": [
+			"DerHausmeisterKrause <marcel.asboeck2000@web.de>"
+		],
+		"keywords": [
+			"template",
+			"automation",
+			"IoT",
+			"integration"
+		],
+		"licenseInformation": {
+			"type": "free",
+			"license": "MIT"
+		},
+		"platform": "Javascript/Node.js",
+		"icon": "meshcore.png",
+		"enabled": true,
+		"extIcon": "https://raw.githubusercontent.com/DerHAusmeisterKrause/ioBroker.meshcore/main/admin/meshcore.png",
+		"readme": "https://github.com/DerHAusmeisterKrause/ioBroker.meshcore/blob/main/README.md",
+		"loglevel": "info",
+		"tier": 3,
+		"mode": "daemon",
+		"type": "logic",
+		"compact": true,
+		"connectionType": "local",
+		"dataSource": "poll",
+		"adminUI": {
+			"config": "materialize"
+		},
+		"dependencies": [
+			{
+				"js-controller": ">=6.0.11"
+			}
+		],
+		"globalDependencies": [
+			{
+				"admin": ">=7.0.23"
+			}
+		]
+	},
+	"native": {
+		"option1": true,
+		"option2": "42"
+	},
+	"objects": [],
+	"instanceObjects": []
+}
